@@ -6837,11 +6837,12 @@ var
   i, j, ImageIndex, ColumnsInList: Integer;
   Results: TDBQuery;
   DBObjects: TDBObjectList;
-  CurrentQuery, TableClauses, TableName, LeftPart, Token1, Token2, Token3, Token, Ident: String;
+  CurrentQuery, TableClauses, TableName, LeftPart, Token1, Token2, Token3, Ident: String;
   Tables: TStringList;
   rx: TRegExpr;
-  Start, TokenTypeInt: Integer;
-  Attri: TSynHighlighterAttributes;
+  CaretToken: String;
+  CaretStart, CaretTokenTypeInt: Integer;
+  CaretAttri: TSynHighlighterAttributes;
   Proposal: TSynCompletionProposal;
   Editor: TCustomSynEdit;
   Queries: TSQLBatch;
@@ -6936,9 +6937,9 @@ begin
   Proposal.Columns[1].ColumnWidth := ScaleSize(100);
   Conn := ActiveConnection;
   Editor := Proposal.Form.CurrentEditor;
-  Editor.GetHighlighterAttriAtRowColEx(Editor.PrevWordPos, Token, TokenTypeInt, Start, Attri);
+  Editor.GetHighlighterAttriAtRowColEx(Editor.CaretXY, CaretToken, CaretTokenTypeInt, CaretStart, CaretAttri);
   CanExecute := AppSettings.ReadBool(asCompletionProposal) and
-    (not (TtkTokenKind(TokenTypeInt) in [SynHighlighterSQL.tkString, SynHighlighterSQL.tkComment]));
+    (not (TtkTokenKind(CaretTokenTypeInt) in [SynHighlighterSQL.tkString, SynHighlighterSQL.tkComment]));
   if not CanExecute then
     Exit;
 
@@ -6948,7 +6949,7 @@ begin
   rx := TRegExpr.Create;
 
   // Find token1.token2.token3, while cursor is somewhere in token3
-  Ident := '[^\s,\(\)=\.]';
+  Ident := '[^\s,\(\)=\.\!<>]';
   rx.Expression := '(('+Ident+'+)\.)?('+Ident+'+)\.('+Ident+'*)$';
   LeftPart := Copy(Editor.LineText, 1, Editor.CaretX-1);
   if rx.Exec(LeftPart) then begin
@@ -11004,9 +11005,9 @@ begin
               EnumEditor.ValueList.Add(ForeignResults.Col(0));
             if TextCol <> '' then begin
               if DisplayHex then
-                EnumEditor.DisplayList.Add(ForeignResults.HexValue(0)+': '+ForeignResults.Col(1))
+                EnumEditor.DisplayList.Add(ForeignResults.Col(1) + ' (' + ForeignResults.HexValue(0) + ')')
               else
-                EnumEditor.DisplayList.Add(ForeignResults.Col(0)+': '+ForeignResults.Col(1));
+                EnumEditor.DisplayList.Add(ForeignResults.Col(1) + ' (' + ForeignResults.Col(0) + ')');
             end;
             ForeignResults.Next;
           end;
@@ -11151,7 +11152,10 @@ begin
   if not (coVisible in Col.Options) then
     Exit;
   ColTextWidth := Tree.Canvas.TextWidth(Col.Text);
-  // Add space for sort glyph
+  // Add space for column id ...
+  if (Column > 0) and AppSettings.ReadBool(asShowRowId) then
+    ColTextWidth := ColTextWidth + Tree.Canvas.TextWidth(Column.ToString) + 5;
+  // ... and sort glyph
   if Col.ImageIndex > -1 then
     ColTextWidth := ColTextWidth + 20;
   Node := Tree.GetFirstVisible;
